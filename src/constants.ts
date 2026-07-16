@@ -1,5 +1,5 @@
 /**
- * Plasma One backend, recovered by static analysis of the app (see docs/RESEARCH.md).
+ * Plasma One backend, recovered by static analysis of the app.
  * The marketing domains (plasma.to / plasma.org) are NOT the API.
  */
 export const PLASMA_BASE = "https://pay-tasks.prod.plasma-one.tech/api";
@@ -8,7 +8,7 @@ export const PLASMA_WS = "wss://pay-tasks-ws.prod.plasma-one.tech/ws";
 /**
  * Privy auth (privy.io). These are the app's PUBLIC client identifiers — shipped in the app,
  * not secrets. They do not, by themselves, grant access: Privy enforces native app attestation
- * on login (see docs/AUTH.md), so headless login is not possible with these alone.
+ * on login, so headless login is not possible with these alone.
  */
 export const PRIVY_APP_ID = "cmlp3xl8q00vl0cl84mzc1kzx";
 export const PRIVY_CLIENT_ID = "client-WY6W311hfzEMNBRfQRYbEu3kg9ubJw5wqUzmJy2Wa4qfs";
@@ -28,8 +28,8 @@ export const DEFAULTS = {
 } as const;
 
 /**
- * Endpoints recovered from the bundle (docs/ENDPOINTS.md). Only the read endpoints a ZenMoney
- * syncer needs are listed here; the full 108-operation catalogue is in the docs.
+ * Endpoints recovered from the app bundle. Only the read endpoints a syncer needs are listed
+ * here; the app exposes ~108 operations in total.
  *
  * Paths marked `TEMPLATED` are built from a path parameter in the app and were not a single
  * string literal — the id-bearing shape is inferred and MUST be confirmed against real traffic.

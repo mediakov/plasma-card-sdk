@@ -23,3 +23,8 @@ sslkeys*.txt
 .DS_Store
 *.log
 coverage/
+
+# Working research notes — kept locally, never published (they are reverse-engineering
+# working material, not project documentation).
+docs/
+examples/web-origin-email.mjs

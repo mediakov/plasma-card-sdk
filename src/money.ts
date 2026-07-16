@@ -4,7 +4,7 @@
  * record it cannot read honestly — null means "cannot be represented", so skip or surface it,
  * never silently book it as zero.
  *
- * Plasma specifics, confirmed live (docs/AUTH.md capture):
+ * Plasma specifics, confirmed live:
  *  - Money is `{ amount, currency, decimals }`: `amount` is a SIGNED integer in minor units, as a
  *    string; `decimals` is its scale. Debits (card_purchase) are negative, credits positive.
  *  - `timestamp` is epoch MILLISECONDS as a 13-digit string, not ISO.

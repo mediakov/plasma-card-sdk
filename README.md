@@ -3,18 +3,16 @@
 A TypeScript SDK for the **Plasma One** card API (`pay-tasks.prod.plasma-one.tech`), the
 stablecoin neobank card by Plasma (XPL), issued by Rain.
 
-> ⚠️ **EARLY BUT WORKING.** The endpoint map is real, email OTP login and headless token refresh
-> are **confirmed live** (2026-07-16, so unattended operation works), and the read-side response
-> **types are now observed from live traffic**, not guessed. What's still thin: only the read
-> endpoints a syncer needs are modelled, mutations are untouched, and the models reflect one
-> account's data. Read `docs/RESEARCH.md` and `docs/AUTH.md` first.
+> ⚠️ **EARLY BUT WORKING.** Email OTP login and headless token refresh are **confirmed live**
+> (2026-07-16, so unattended operation works), and the read-side response **types are observed from
+> live traffic**, not guessed. What's still thin: only read endpoints are modelled, mutations are
+> untouched, and the models reflect one account's data.
 
 ## What's known (solid)
 
 - **Base URL:** `https://pay-tasks.prod.plasma-one.tech/api/` (+ `wss://…/ws`)
-- **Auth provider:** Privy, app id `cmlp3xl8q00vl0cl84mzc1kzx`
-- **108 operations** with recovered REST paths — full table in [`docs/ENDPOINTS.md`](docs/ENDPOINTS.md)
-- Read endpoints a ZenMoney syncer needs: `v1/user`, `v1/user/cards`, `v1/user/balance`,
+- **Auth provider:** Privy
+- Read endpoints a syncer needs: `v1/user`, `v1/user/cards`, `v1/user/balance`,
   `v1/transaction-history`, `v1/user/virtual-accounts`, …
 
 ## What's modelled (observed live)
@@ -31,13 +29,12 @@ timestamps, `{data,next_cursor,has_more}` cursor pages):
 Still open: mutation endpoints are unmodelled, and the types reflect one account, so treat unusual
 states (frozen cards, other currencies) as `Open<>`/optional until seen.
 
-**Solved — unattended auth.** Privy access tokens last ~1h. An email identity linked to the
-existing Privy/Plasma identity logs in through the allowed `recovery.plasma.org` web origin, and
-the SDK persists the access **and refresh** tokens. It renews the access token headlessly from the
-refresh token — automatically on a 401, or via `login.refresh()` — using Privy's web-origin
-session-refresh call (`POST /api/v1/sessions`, refresh token + current bearer). **Confirmed live
-2026-07-16** via [`examples/refresh.mjs`](examples/refresh.mjs); no OTP needed after the first
-login. Full detail in [`docs/AUTH.md`](docs/AUTH.md).
+**Unattended auth.** Privy access tokens last exactly 60 minutes. Log in once with an email OTP
+(the email must be linked to your Privy identity), and the SDK persists the access **and refresh**
+tokens to a mode-`0600` session file and renews the access token from the refresh token on its own
+— automatically on a 401, or via `login.refresh()`. Verify it yourself with
+[`examples/refresh.mjs`](examples/refresh.mjs); no OTP is needed after the first login, for as long
+as the refresh token stays valid.
 
 ## How it's built
 
@@ -91,31 +88,20 @@ PLASMA_EMAIL=you@example.com node examples/login.mjs             # sends an OTP
 PLASMA_EMAIL=you@example.com PLASMA_OTP=123456 node examples/login.mjs
 ```
 
-## To make it real
+## Known gaps
 
-1. Capture the app's live traffic only on a safe test device. It can reveal the SDK-managed
-   refresh protocol and the real response bodies needed to tighten the types.
-2. Tighten `src/types.ts` against captured responses; confirm pagination + params.
-3. Add automatic refresh only after that protocol is observed and shown to work headlessly.
+Worth knowing before you rely on this:
 
-### Web-origin probe (email identities only)
+- **The models reflect one account.** States it has never been in — frozen cards, other
+  currencies, `send`/`withdrawal`/`refund` rows — are inference, kept inside `Open<>` and optional
+  fields so they degrade rather than crash.
+- **Mutations are unmodelled.** Read endpoints only.
+- **Whether a pending charge keeps its id when it settles is unverified.** If you dedupe by id,
+  confirm that before trusting a ledger built from this.
+- **The refresh token's lifetime is unknown** (it is opaque, not a JWT), so how long unattended
+  operation lasts before a fresh OTP is needed has not been established.
 
-For a one-shot diagnostic of Privy's origin-gated web mode, use the helper below. It requests an
-emailed OTP, exchanges it without printing or saving the bearer token, then checks whether that
-token can read the Plasma user endpoint. Prefer the SDK flow above for normal use:
+## Security
 
-```bash
-PLASMA_EMAIL=you@example.com node examples/web-origin-email.mjs start
-PLASMA_EMAIL=you@example.com PLASMA_OTP=123456 node examples/web-origin-email.mjs verify
-```
-
-This does **not** bypass mobile attestation. Previous research found that the email identity may
-be separate from the phone-linked Plasma account, in which case the final identity check succeeds
-but returns no card data. Do not repeat `start` rapidly: Privy rate-limits these requests.
-
-## Docs
-
-- [`docs/RESEARCH.md`](docs/RESEARCH.md) — full recon: how everything was found, and the wall
-- [`docs/AUTH.md`](docs/AUTH.md) — Privy flow + the attestation blocker + how auth is handled here
-- [`docs/ENDPOINTS.md`](docs/ENDPOINTS.md) — all 108 operations, methods + paths
-- `docs/operation-keys.txt` — raw query/mutation key constants
+The session file holds a refresh token that renews itself — treat it as a password, not a
+one-hour credential. See [SECURITY.md](SECURITY.md).

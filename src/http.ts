@@ -4,7 +4,7 @@ import { describe, isRecord } from "./validate.js";
 
 export interface HttpOptions {
   baseUrl?: string;
-  /** Privy token presented to the Plasma backend (see docs/AUTH.md). */
+  /** Privy token presented to the Plasma backend. */
   privyToken?: string;
   timeoutMs?: number;
   maxRetries?: number;

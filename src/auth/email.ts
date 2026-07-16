@@ -8,7 +8,7 @@ const PRIVY_BASE = "https://auth.privy.io/api/v1";
 const PASSWORDLESS = `${PRIVY_BASE}/passwordless`;
 // Privy renews a session by POSTing the rotating refresh token here. Recovered from the app
 // bundle (the `sessions` family, `refreshSession`); the exact request/response is confirmed by
-// docs/AUTH.md's live check, not by this code. Same web-origin client mode as login.
+// a live check, not by this code. Same web-origin client mode as login.
 const SESSIONS = `${PRIVY_BASE}/sessions`;
 
 interface PrivyTokenResponse {

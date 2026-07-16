@@ -9,9 +9,14 @@ import { SessionStore } from "./auth/session.js";
 /**
  * How the client authenticates.
  *
- * There is only ONE mode, deliberately: a caller-supplied token. Plasma logs in through Privy,
- * which enforces native app attestation, so this SDK CANNOT perform login headlessly (see
- * docs/AUTH.md). You obtain a token from the real app by some external means and pass it here.
+ * Two modes. `email` is the one to use: Privy's origin-gated email OTP, after which the SDK
+ * renews the access token from a stored refresh token with no further human step (proven against
+ * a real 60-minute expiry). `token` exists for a bearer you obtained elsewhere; it cannot renew
+ * itself and dies in an hour.
+ *
+ * Privy enforces native app attestation on the MOBILE client mode, which is not reproducible
+ * outside the real app — the email flow deliberately uses the web client mode instead, which is
+ * gated on an allowed origin rather than attestation.
  */
 export type PlasmaCardAuth =
   | {
@@ -44,7 +49,7 @@ export interface PlasmaCardOptions {
  *
  * ⚠️ PRE-ALPHA. The email OTP path and headless token refresh are both confirmed live; response
  * models remain unverified. Access tokens last ~1h and are auto-renewed from the stored refresh
- * token on a 401 (and via `login.refresh()`), so unattended operation works. See docs/AUTH.md.
+ * token on a 401 (and via `login.refresh()`), so unattended operation works.
  *
  * ```ts
  * const pc = new PlasmaCard({ auth: { kind: "email", email: "you@example.com" } });
@@ -52,8 +57,8 @@ export interface PlasmaCardOptions {
  *   await pc.login.sendCode();
  *   await pc.login.verify("123456");
  * }
- * const cards = await pc.account.cards();
- * const txs = await pc.account.transactions();
+ * const cards = await pc.cards.list();
+ * for await (const tx of pc.transactions.iterate()) console.log(usdAmount(tx));
  * ```
  */
 export class PlasmaCard {
@@ -116,7 +121,7 @@ export class PlasmaCard {
       /**
        * Renew the access token from the stored refresh token without an OTP (confirmed live).
        * Returns false when no refresh token is stored (log in again). Also runs automatically on
-       * a 401; call it directly only to renew proactively. See docs/AUTH.md.
+       * a 401; call it directly only to renew proactively.
        */
       refresh: async (): Promise<boolean> => {
         if (!email) throw new Error("login is only available in email auth mode");
