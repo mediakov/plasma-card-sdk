@@ -51,6 +51,13 @@ jobs:
       - name: Publish to npm (trusted publishing — no token)
         run: |
           VERSION=$(node -p "require('./package.json').version")
+          # 0.0.0 is the baseline placeholder, never a real release. Without this guard a push
+          # that semantic-release declines to release (a docs: commit, say) leaves the version at
+          # 0.0.0, finds it absent from the registry, and helpfully publishes it.
+          if [ "$VERSION" = "0.0.0" ]; then
+            echo "Version is still the 0.0.0 baseline — semantic-release made no release. Nothing to publish."
+            exit 0
+          fi
           if npm view "plasma-card-sdk@${VERSION}" version >/dev/null 2>&1; then
             echo "plasma-card-sdk@${VERSION} is already on npm — nothing to publish."
             exit 0

@@ -55,7 +55,10 @@
     "example:refresh": "node examples/refresh.mjs"
   },
   "devDependencies": {
+    "@semantic-release/changelog": "^6.0.3",
+    "@semantic-release/git": "^10.0.1",
     "@types/node": "^22.20.1",
+    "semantic-release": "^24.2.0",
     "tsup": "^8.3.0",
     "typescript": "^5.7.2"
   }
