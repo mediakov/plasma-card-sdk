@@ -10,7 +10,15 @@ export type { HttpOptions, RequestOptions } from "./http.js";
 export { PlasmaAccount } from "./resources/account.js";
 export type { TransactionListParams } from "./resources/account.js";
 
-export { parseMoney, directionSign, signedAmount, transactionDate, isBookable } from "./money.js";
+export {
+  parseMoney,
+  formatMoney,
+  directionSign,
+  signedAmount,
+  transactionDate,
+  isSettled,
+  isBookable,
+} from "./money.js";
 
 export {
   PlasmaError,

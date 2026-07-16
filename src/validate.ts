@@ -26,13 +26,22 @@ export function expectObject(value: unknown, url: string, what: string): Record<
   return value;
 }
 
-/**
- * The transaction-history response shape is UNKNOWN (array? {data}? cursor-paginated?). This
- * accepts either a bare array or an object with a `data` array, so the resource layer works
- * against whichever the real API turns out to use — tighten once observed.
- */
+/** A bare list payload (e.g. /v1/user/cards returns a JSON array). */
 export function expectList<T>(value: unknown, url: string, what: string): T[] {
   if (Array.isArray(value)) return value as T[];
   if (isRecord(value) && Array.isArray(value.data)) return value.data as T[];
   throw new ValidationError(url, what, describe(value));
+}
+
+/**
+ * A cursor-paginated payload, confirmed shape `{ data: [], next_cursor, has_more }`. Validates the
+ * `data` array (the load-bearing part) and passes the cursor fields through untouched.
+ */
+export function expectCursorPage<T>(value: unknown, url: string, what: string): {
+  data: T[];
+  next_cursor?: string | null;
+  has_more?: boolean;
+} {
+  if (!isRecord(value) || !Array.isArray(value.data)) throw new ValidationError(url, what, describe(value));
+  return value as { data: T[]; next_cursor?: string | null; has_more?: boolean };
 }

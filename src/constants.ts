@@ -35,16 +35,16 @@ export const DEFAULTS = {
  * string literal — the id-bearing shape is inferred and MUST be confirmed against real traffic.
  */
 export const ENDPOINTS = {
-  user: "/v1/user", // GET
-  cards: "/v1/user/cards", // GET
-  balance: "/v1/user/balance", // GET
-  tokenBalances: "/v1/user/token-balances", // GET
-  cardLeftToSpend: "/v1/user/card/left-to-spend", // GET
-  transactionHistory: "/v1/transaction-history", // GET, param: includeDustReceives
-  transactionOne: "/v1/transaction-history/{id}", // GET — TEMPLATED, confirm
-  virtualAccounts: "/v1/user/virtual-accounts", // GET
-  externalAccounts: "/v1/user/external-accounts", // GET
-  xplTransactionHistory: "/v1/user/rewards/xpl-transaction-history", // GET
+  user: "/v1/user", // GET — confirmed live
+  cards: "/v1/user/cards", // GET — confirmed live (bare JSON array)
+  balance: "/v1/user/balance", // GET — confirmed live
+  tokenBalances: "/v1/user/token-balances", // GET — confirmed live
+  cardLeftToSpend: "/v1/user/card/left-to-spend", // GET — confirmed; requires ?card_id=<id>
+  transactionHistory: "/v1/transaction-history", // GET — confirmed; params: includeDustReceives, limit, cursor
+  transactionOne: "/v1/transaction-history/{id}", // GET — TEMPLATED, not yet confirmed
+  virtualAccounts: "/v1/user/virtual-accounts", // GET — confirmed live ({accounts:[]})
+  externalAccounts: "/v1/user/external-accounts", // GET — confirmed live ({accounts:[]})
+  xplTransactionHistory: "/v1/user/rewards/xpl-transaction-history", // GET — confirmed; cursor-paginated
 } as const;
 
 /**

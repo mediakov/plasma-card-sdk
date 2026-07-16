@@ -3,10 +3,11 @@
 A TypeScript SDK for the **Plasma One** card API (`pay-tasks.prod.plasma-one.tech`), the
 stablecoin neobank card by Plasma (XPL), issued by Rain.
 
-> ⚠️ **PRE-ALPHA.** The endpoint map is real (recovered by static analysis), the email OTP login
-> path is confirmed live, and headless token refresh is **confirmed live** (2026-07-16) — so
-> unattended operation works. The remaining gap: response **types are still guesses** and must be
-> tightened against real captured bodies. Read `docs/RESEARCH.md` and `docs/AUTH.md` first.
+> ⚠️ **EARLY BUT WORKING.** The endpoint map is real, email OTP login and headless token refresh
+> are **confirmed live** (2026-07-16, so unattended operation works), and the read-side response
+> **types are now observed from live traffic**, not guessed. What's still thin: only the read
+> endpoints a syncer needs are modelled, mutations are untouched, and the models reflect one
+> account's data. Read `docs/RESEARCH.md` and `docs/AUTH.md` first.
 
 ## What's known (solid)
 
@@ -16,11 +17,18 @@ stablecoin neobank card by Plasma (XPL), issued by Rain.
 - Read endpoints a ZenMoney syncer needs: `v1/user`, `v1/user/cards`, `v1/user/balance`,
   `v1/transaction-history`, `v1/user/virtual-accounts`, …
 
-## What's NOT known (the remaining blocker)
+## What's modelled (observed live)
 
-1. **Response shapes.** Static analysis of a React Native app yields paths, not response schemas.
-   The types in `src/types.ts` are **all-optional guesses** — the honest default (same lesson the
-   Jupiter SDK learned: shapes must be observed). Tighten them against real captured responses.
+The read endpoints below returned real bodies on 2026-07-16; `src/types.ts` matches them (the
+API's own snake_case, money as `{amount,currency,decimals}` in signed minor units, epoch-ms
+timestamps, `{data,next_cursor,has_more}` cursor pages):
+
+- `user`, `cards`, `balance`, `token-balances`, `card/left-to-spend?card_id=` (all objects/arrays)
+- `transaction-history` and `rewards/xpl-transaction-history` — cursor-paginated
+  (`?limit=N&cursor=<next_cursor>`); `PlasmaAccount.iterateTransactions()` walks every page
+
+Still open: mutation endpoints are unmodelled, and the types reflect one account, so treat unusual
+states (frozen cards, other currencies) as `Open<>`/optional until seen.
 
 **Solved — unattended auth.** Privy access tokens last ~1h. An email identity linked to the
 existing Privy/Plasma identity logs in through the allowed `recovery.plasma.org` web origin, and
@@ -34,25 +42,30 @@ login. Full detail in [`docs/AUTH.md`](docs/AUTH.md).
 
 Mirrors [`jupiter-card-sdk`](../jupiter-card-sdk)'s architecture, carrying its hard-won lessons:
 
-- `money.ts` — `signedAmount` / `parseMoney` / `transactionDate`, returning `null` (never a guess)
+- `money.ts` — `signedAmount` / `parseMoney` / `formatMoney` / `transactionDate` / `isSettled`,
+  returning `null` (never a guess); `formatMoney` is exact for 18-decimal tokens
 - `errors.ts` — typed hierarchy (`AuthError`, `RateLimitError`, `ValidationError`, …)
-- `http.ts` — validation boundary, idempotent-only retry, no replay of non-idempotent POSTs
-- `types.ts` — every field optional, on purpose
+- `http.ts` — validation boundary, idempotent-only retry, auto token refresh on 401
+- `types.ts` — observed shapes, kept `Open<>`/optional where a field is state-dependent
 
 The client supports either a caller-supplied token or the confirmed email OTP flow. Email mode
-persists only its short-lived access token to a mode-`0600` session file:
+persists the access + refresh tokens to a mode-`0600` session file and auto-renews:
 
 ```ts
-import { PlasmaCard, signedAmount } from "plasma-card-sdk";
+import { PlasmaCard, formatMoney, transactionDate } from "plasma-card-sdk";
 
 const pc = new PlasmaCard({ auth: { kind: "email", email: "you@example.com" } });
 if (!pc.isAuthenticated()) {
   await pc.login.sendCode();
   await pc.login.verify("123456"); // code from email
 }
+
 const cards = await pc.account.cards();
-for (const tx of (await pc.account.transactions()).data ?? []) {
-  console.log(tx.merchantName, signedAmount(tx));
+console.log(cards[0].type, cards[0].status, "•" + cards[0].last_4);
+
+// iterateTransactions follows the cursor to the end — never stops on page length
+for await (const tx of pc.account.iterateTransactions({ includeDustReceives: true })) {
+  console.log(transactionDate(tx)?.toISOString(), tx.merchant?.name, formatMoney(tx.amount), tx.amount.currency);
 }
 ```
 
