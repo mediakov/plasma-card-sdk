@@ -7,8 +7,12 @@ export type { PlasmaSession } from "./auth/session.js";
 export { HttpClient, IDEMPOTENT_METHODS } from "./http.js";
 export type { HttpOptions, RequestOptions } from "./http.js";
 
-export { PlasmaAccount } from "./resources/account.js";
-export type { TransactionListParams } from "./resources/account.js";
+export { Account } from "./resources/account.js";
+export { Cards } from "./resources/cards.js";
+export { Transactions } from "./resources/transactions.js";
+export type { TransactionListParams, TransactionWalkParams } from "./resources/transactions.js";
+export { Rewards } from "./resources/rewards.js";
+export type { XplListParams } from "./resources/rewards.js";
 
 export {
   parseMoney,

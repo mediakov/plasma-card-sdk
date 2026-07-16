@@ -21,7 +21,8 @@
   "files": [
     "dist",
     "docs",
-    "README.md"
+    "README.md",
+    "LICENSE"
   ],
   "license": "MIT",
   "devDependencies": {

@@ -1,5 +1,8 @@
 import { HttpClient } from "./http.js";
-import { PlasmaAccount } from "./resources/account.js";
+import { Account } from "./resources/account.js";
+import { Cards } from "./resources/cards.js";
+import { Rewards } from "./resources/rewards.js";
+import { Transactions } from "./resources/transactions.js";
 import { EmailAuth } from "./auth/email.js";
 import { SessionStore } from "./auth/session.js";
 
@@ -29,6 +32,10 @@ export interface PlasmaCardOptions {
   baseUrl?: string;
   timeoutMs?: number;
   maxRetries?: number;
+  /** Base backoff step in ms; grows exponentially with jitter. Default 500. */
+  retryBaseMs?: number;
+  /** Cap on a single backoff wait in ms, including a server's Retry-After. Default 8000. */
+  retryMaxMs?: number;
   fetch?: typeof fetch;
 }
 
@@ -51,7 +58,14 @@ export interface PlasmaCardOptions {
  */
 export class PlasmaCard {
   readonly http: HttpClient;
-  readonly account: PlasmaAccount;
+  /** Profile, balances, funding accounts. */
+  readonly account: Account;
+  /** Cards and spending headroom. */
+  readonly cards: Cards;
+  /** Card transactions: page, iterate, or walk since a date. */
+  readonly transactions: Transactions;
+  /** XPL reward-token history. */
+  readonly rewards: Rewards;
   private readonly auth: PlasmaCardAuth;
   private readonly email?: EmailAuth;
 
@@ -66,6 +80,8 @@ export class PlasmaCard {
       privyToken: opts.auth.kind === "token" ? opts.auth.privyToken : restored?.accessToken,
       timeoutMs: opts.timeoutMs,
       maxRetries: opts.maxRetries,
+      retryBaseMs: opts.retryBaseMs,
+      retryMaxMs: opts.retryMaxMs,
       fetch: opts.fetch,
     });
     if (opts.auth.kind === "email") {
@@ -73,7 +89,10 @@ export class PlasmaCard {
       // A 401 now auto-renews the access token from the stored refresh token, then replays once.
       this.http.setRefresher(() => this.email!.refresh());
     }
-    this.account = new PlasmaAccount(this.http);
+    this.account = new Account(this.http);
+    this.cards = new Cards(this.http);
+    this.transactions = new Transactions(this.http);
+    this.rewards = new Rewards(this.http);
   }
 
   /** True when a caller-supplied or persisted access token is available. */

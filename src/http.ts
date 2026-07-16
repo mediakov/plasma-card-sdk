@@ -8,6 +8,10 @@ export interface HttpOptions {
   privyToken?: string;
   timeoutMs?: number;
   maxRetries?: number;
+  /** Base backoff step in ms; grows exponentially with jitter. Default 500. */
+  retryBaseMs?: number;
+  /** Cap on a single backoff wait in ms, including a server's Retry-After. Default 8000. */
+  retryMaxMs?: number;
   fetch?: typeof fetch;
 }
 
@@ -41,6 +45,8 @@ export class HttpClient {
   private privyToken?: string;
   private readonly timeoutMs: number;
   private readonly maxRetries: number;
+  private readonly retryBaseMs: number;
+  private readonly retryMaxMs: number;
   private readonly fetchImpl: typeof fetch;
   private refresher?: Refresher;
 
@@ -49,6 +55,8 @@ export class HttpClient {
     this.privyToken = opts.privyToken;
     this.timeoutMs = opts.timeoutMs ?? DEFAULTS.timeoutMs;
     this.maxRetries = opts.maxRetries ?? DEFAULTS.maxRetries;
+    this.retryBaseMs = opts.retryBaseMs ?? DEFAULTS.retryBaseMs;
+    this.retryMaxMs = opts.retryMaxMs ?? DEFAULTS.retryMaxMs;
     this.fetchImpl = opts.fetch ?? globalThis.fetch;
   }
 
@@ -97,6 +105,24 @@ export class HttpClient {
     return opts.retry ?? IDEMPOTENT_METHODS.has(method.toUpperCase());
   }
 
+  /**
+   * How long to wait before re-sending a failed attempt.
+   *
+   * Jittered (50–100% of the exponential step) so that N clients failing on the same upstream
+   * blip do not all retry on the same tick and reproduce the spike that broke it.
+   *
+   * A server-supplied `Retry-After` wins, but is CAPPED at `retryMaxMs`: it is an untrusted
+   * number, and honouring it literally lets a `Retry-After: 3600` park the process for an hour
+   * — per attempt. The cap keeps a slow retry from becoming an indefinite hang; a caller who
+   * needs to respect a long backoff can catch RateLimitError, which still carries the real value.
+   */
+  private backoff(attempt: number, retryAfterMs?: number): number {
+    if (retryAfterMs && retryAfterMs > 0) return Math.min(retryAfterMs, this.retryMaxMs);
+    const exp = this.retryBaseMs * 2 ** attempt;
+    const jitter = exp * (0.5 + Math.random() * 0.5);
+    return Math.min(jitter, this.retryMaxMs);
+  }
+
   async request<T>(method: string, path: string, opts: RequestOptions = {}): Promise<T> {
     const url = new URL(path.startsWith("http") ? path : this.base + path);
     for (const [k, v] of Object.entries(opts.query ?? {})) {
@@ -118,8 +144,10 @@ export class HttpClient {
         res = await this.fetchImpl(url, { method, headers, body: payload, signal: opts.signal ?? AbortSignal.timeout(this.timeoutMs) });
       } catch (e) {
         const isTimeout = e instanceof Error && (e.name === "TimeoutError" || e.name === "AbortError");
+        // A network error leaves the request's fate unknown — it may well have reached the
+        // server. Only replay it when replaying is harmless.
         if (retryable && attempt < this.maxRetries) {
-          await sleep(Math.min(DEFAULTS.retryBaseMs * 2 ** attempt, DEFAULTS.retryMaxMs));
+          await sleep(this.backoff(attempt));
           continue;
         }
         throw isTimeout
@@ -127,10 +155,14 @@ export class HttpClient {
           : new NetworkError(`Network error for ${url}: ${(e as Error).message}`, { cause: e });
       }
 
+      // Retryable statuses — but only for a request that is safe to send twice. A non-retryable
+      // 429 still surfaces as RateLimitError carrying retryAfterMs, so the caller can decide;
+      // the SDK just refuses to decide for them.
       if ((res.status === 429 || res.status >= 500) && retryable && attempt < this.maxRetries) {
         const ra = res.headers.get("retry-after");
-        const wait = ra && !Number.isNaN(Number(ra)) ? Number(ra) * 1000 : Math.min(DEFAULTS.retryBaseMs * 2 ** attempt, DEFAULTS.retryMaxMs);
-        await sleep(wait);
+        // Retry-After may also be an HTTP-date, which is not a number — fall back to backoff.
+        const retryAfterMs = ra && !Number.isNaN(Number(ra)) ? Number(ra) * 1000 : undefined;
+        await sleep(this.backoff(attempt, retryAfterMs));
         continue;
       }
 

@@ -9,7 +9,7 @@
  *    string; `decimals` is its scale. Debits (card_purchase) are negative, credits positive.
  *  - `timestamp` is epoch MILLISECONDS as a 13-digit string, not ISO.
  */
-import type { Money, PlasmaTransaction } from "./types.js";
+import type { Money, Transaction } from "./types.js";
 
 function isMoney(v: unknown): v is Money {
   return typeof v === "object" && v !== null &&
@@ -44,14 +44,14 @@ export function formatMoney(money: Money | null | undefined): string | null {
 }
 
 /** The sign of a transaction's (already-signed) amount: 1 credit, -1 debit, null if unreadable. */
-export function directionSign(tx: Pick<PlasmaTransaction, "amount">): 1 | -1 | null {
+export function directionSign(tx: Pick<Transaction, "amount">): 1 | -1 | null {
   const n = parseMoney(tx.amount);
   if (n === null) return null;
   return n < 0 ? -1 : 1;
 }
 
 /** The signed decimal amount of a transaction (Plasma already signs it). Null if unreadable. */
-export function signedAmount(tx: Pick<PlasmaTransaction, "amount">): number | null {
+export function signedAmount(tx: Pick<Transaction, "amount">): number | null {
   return parseMoney(tx.amount);
 }
 
@@ -59,7 +59,7 @@ export function signedAmount(tx: Pick<PlasmaTransaction, "amount">): number | nu
  * The transaction time as a Date. Plasma sends epoch milliseconds as a numeric string; an ISO
  * string is also accepted defensively. Returns null for anything unparseable.
  */
-export function transactionDate(tx: Pick<PlasmaTransaction, "timestamp">): Date | null {
+export function transactionDate(tx: Pick<Transaction, "timestamp">): Date | null {
   const ts = tx.timestamp;
   if (ts == null || ts === "") return null;
   const d = /^\d+$/.test(String(ts)) ? new Date(Number(ts)) : new Date(ts);
@@ -67,11 +67,11 @@ export function transactionDate(tx: Pick<PlasmaTransaction, "timestamp">): Date 
 }
 
 /** A settled transaction (money has actually moved) — excludes pending holds and declines. */
-export function isSettled(tx: Pick<PlasmaTransaction, "status">): boolean {
+export function isSettled(tx: Pick<Transaction, "status">): boolean {
   return tx.status === "completed";
 }
 
 /** True when the record can be booked at all: amount and date are both readable. */
-export function isBookable(tx: PlasmaTransaction): boolean {
+export function isBookable(tx: Transaction): boolean {
   return signedAmount(tx) !== null && transactionDate(tx) !== null;
 }

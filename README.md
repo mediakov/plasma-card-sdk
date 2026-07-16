@@ -25,7 +25,8 @@ timestamps, `{data,next_cursor,has_more}` cursor pages):
 
 - `user`, `cards`, `balance`, `token-balances`, `card/left-to-spend?card_id=` (all objects/arrays)
 - `transaction-history` and `rewards/xpl-transaction-history` — cursor-paginated
-  (`?limit=N&cursor=<next_cursor>`); `PlasmaAccount.iterateTransactions()` walks every page
+  (`?limit=N&cursor=<next_cursor>`). Walk them with `transactions.iterate()` (de-duped, follows
+  the cursor to the end), `transactions.all()`, or `transactions.since(date)` for incremental sync
 
 Still open: mutation endpoints are unmodelled, and the types reflect one account, so treat unusual
 states (frozen cards, other currencies) as `Open<>`/optional until seen.
@@ -45,7 +46,8 @@ Mirrors [`jupiter-card-sdk`](../jupiter-card-sdk)'s architecture, carrying its h
 - `money.ts` — `signedAmount` / `parseMoney` / `formatMoney` / `transactionDate` / `isSettled`,
   returning `null` (never a guess); `formatMoney` is exact for 18-decimal tokens
 - `errors.ts` — typed hierarchy (`AuthError`, `RateLimitError`, `ValidationError`, …)
-- `http.ts` — validation boundary, idempotent-only retry, auto token refresh on 401
+- `http.ts` — validation boundary, idempotent-only retry with jittered backoff (a server's
+  `Retry-After` is honoured but capped, so it cannot park the process), auto token refresh on 401
 - `types.ts` — observed shapes, kept `Open<>`/optional where a field is state-dependent
 
 The client supports either a caller-supplied token or the confirmed email OTP flow. Email mode
@@ -60,14 +62,26 @@ if (!pc.isAuthenticated()) {
   await pc.login.verify("123456"); // code from email
 }
 
-const cards = await pc.account.cards();
+const cards = await pc.cards.list();
 console.log(cards[0].type, cards[0].status, "•" + cards[0].last_4);
 
-// iterateTransactions follows the cursor to the end — never stops on page length
-for await (const tx of pc.account.iterateTransactions({ includeDustReceives: true })) {
+// iterate() follows the cursor to the end — never stops on page length
+for await (const tx of pc.transactions.iterate({ includeDustReceives: true })) {
   console.log(transactionDate(tx)?.toISOString(), tx.merchant?.name, formatMoney(tx.amount), tx.amount.currency);
 }
+
+// or, for incremental sync: everything since the last run
+for await (const tx of pc.transactions.since(lastSyncedAt)) { /* … */ }
 ```
+
+Resources are split by domain, mirroring `jupiter-card-sdk`:
+
+| Resource | Methods |
+|---|---|
+| `pc.account` | `user()`, `balance()`, `tokenBalances()`, `virtualAccounts()`, `externalAccounts()` |
+| `pc.cards` | `list()`, `leftToSpend(cardId)` |
+| `pc.transactions` | `list()`, `iterate()`, `all()`, `since(date)` |
+| `pc.rewards` | `xplTransactions()`, `iterateXplTransactions()` |
 
 Or use the runnable example after building:
 

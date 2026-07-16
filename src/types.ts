@@ -61,7 +61,7 @@ export interface MembershipTier {
   [k: string]: unknown;
 }
 
-export interface PlasmaUser {
+export interface User {
   id: string;
   created_at?: string;
   privy_id?: string;
@@ -118,7 +118,7 @@ export interface BillingAddress {
   [k: string]: unknown;
 }
 
-export interface PlasmaCard {
+export interface Card {
   id: string;
   last_4?: string | null;
   type?: CardType;
@@ -146,7 +146,7 @@ export interface PlasmaCard {
  * shared `decimals` (6 for USD). Wrap a field with `{ amount, currency:"USD", decimals }` to reuse
  * the money accessors, or read it directly.
  */
-export interface PlasmaBalance {
+export interface Balance {
   balance?: string;
   total_balance?: string;
   ledger_balance?: string;
@@ -190,7 +190,7 @@ export interface FxDetails {
   [k: string]: unknown;
 }
 
-export interface PlasmaTransaction {
+export interface Transaction {
   id: string;
   /** Signed money: negative for debits (card_purchase), positive for credits (receive). */
   amount: Money;
