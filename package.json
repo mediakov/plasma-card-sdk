@@ -1,0 +1,31 @@
+{
+  "name": "plasma-card-sdk",
+  "version": "0.0.0",
+  "private": true,
+  "description": "Pre-alpha TypeScript SDK for the Plasma One card API (reverse-engineered, not yet runnable end-to-end). See docs/RESEARCH.md.",
+  "type": "module",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    }
+  },
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "typecheck": "tsc --noEmit",
+    "test": "npm run build && node --test test/*.test.mjs"
+  },
+  "engines": {
+    "node": ">=20"
+  },
+  "files": [
+    "dist",
+    "docs",
+    "README.md"
+  ],
+  "license": "MIT",
+  "devDependencies": {
+    "@types/node": "^22.20.1",
+    "typescript": "^5.7.2"
+  }
+}

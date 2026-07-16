@@ -1,0 +1,24 @@
+node_modules/
+dist/
+
+# Captures and app binaries — NEVER commit. Contain live tokens / PII / copyrighted app code.
+*.pcap
+*.pcapng
+*.har
+*.apk
+*.apks
+*.xapk
+sslkeys*.txt
+*keylog*
+
+# Session material — equivalent to login credentials, never commit
+.plasma-session.json
+*.session.json
+
+# Local secrets
+.env
+*.token
+
+# misc
+.DS_Store
+*.log
