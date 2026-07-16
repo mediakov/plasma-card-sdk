@@ -1,0 +1,17 @@
+name: Feature request
+description: Suggest a new endpoint, method, or capability
+labels: [enhancement]
+body:
+  - type: textarea
+    id: problem
+    attributes:
+      label: What do you want to do?
+      description: The use case or the endpoint you'd like the SDK to cover.
+    validations:
+      required: true
+  - type: textarea
+    id: proposal
+    attributes:
+      label: Proposed API
+      description: Optional — how you imagine calling it.
+      render: ts

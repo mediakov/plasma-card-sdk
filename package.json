@@ -1,22 +1,40 @@
 {
   "name": "plasma-card-sdk",
   "version": "0.0.0",
-  "private": true,
-  "description": "Pre-alpha TypeScript SDK for the Plasma One card API (reverse-engineered, not yet runnable end-to-end). See docs/RESEARCH.md.",
+  "description": "Unofficial TypeScript SDK for the Plasma One card API — auth with headless token refresh, balances, cards, and transaction history.",
+  "keywords": [
+    "plasma",
+    "plasma-one",
+    "xpl",
+    "stablecoin",
+    "crypto-card",
+    "rain",
+    "sdk",
+    "typescript",
+    "fintech"
+  ],
+  "license": "MIT",
+  "author": "mediakov <3336529+mediakov@users.noreply.github.com>",
+  "homepage": "https://github.com/mediakov/plasma-card-sdk#readme",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/mediakov/plasma-card-sdk.git"
+  },
+  "bugs": {
+    "url": "https://github.com/mediakov/plasma-card-sdk/issues"
+  },
   "type": "module",
+  "sideEffects": false,
+  "main": "./dist/index.cjs",
+  "module": "./dist/index.js",
+  "types": "./dist/index.d.ts",
   "exports": {
     ".": {
       "types": "./dist/index.d.ts",
-      "import": "./dist/index.js"
-    }
-  },
-  "scripts": {
-    "build": "tsc -p tsconfig.json",
-    "typecheck": "tsc --noEmit",
-    "test": "npm run build && node --test test/*.test.mjs"
-  },
-  "engines": {
-    "node": ">=20"
+      "import": "./dist/index.js",
+      "require": "./dist/index.cjs"
+    },
+    "./package.json": "./package.json"
   },
   "files": [
     "dist",
@@ -24,9 +42,21 @@
     "README.md",
     "LICENSE"
   ],
-  "license": "MIT",
+  "engines": {
+    "node": ">=20"
+  },
+  "scripts": {
+    "build": "tsup",
+    "typecheck": "tsc --noEmit",
+    "test": "npm run build && node --test test/*.test.mjs",
+    "lint": "tsc --noEmit",
+    "prepublishOnly": "npm run build && npm test",
+    "example:login": "node examples/login.mjs",
+    "example:refresh": "node examples/refresh.mjs"
+  },
   "devDependencies": {
     "@types/node": "^22.20.1",
+    "tsup": "^8.3.0",
     "typescript": "^5.7.2"
   }
 }

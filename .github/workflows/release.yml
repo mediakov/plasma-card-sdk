@@ -1,0 +1,59 @@
+name: Release
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch: {} # allow triggering a release manually from the Actions tab / CLI
+
+permissions:
+  contents: write
+  issues: write
+  pull-requests: write
+  id-token: write # npm provenance
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 24
+          cache: npm
+          # No registry-url: it writes an .npmrc referencing NODE_AUTH_TOKEN, which
+          # is not used here — this workflow holds no npm token at all (see below).
+
+      # Trusted publishing (OIDC) needs npm >= 11.5.1; the Node 24 image may ship older.
+      - run: npm install -g npm@latest
+      - run: npm ci
+      - run: npm run typecheck
+      - run: npm test
+
+      # semantic-release decides the next version from Conventional Commits, writes
+      # CHANGELOG.md, commits, tags, and creates the GitHub release. It does NOT
+      # publish: `npmPublish: false` in .releaserc.json. See the note there — the
+      # plugin hard-requires a long-lived NPM_TOKEN, and a 2FA-bypassing token sitting
+      # in CI is precisely the npm supply-chain vector this setup avoids.
+      - run: npx semantic-release
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      # Publish with npm's trusted publishing: npm verifies GitHub's short-lived OIDC
+      # identity for this repo+workflow, so there is no secret to steal, and the
+      # tarball gets a provenance attestation binding it to this commit and run.
+      #
+      # Requires the package's npm settings to trust: mediakov/plasma-card-sdk,
+      # workflow `release.yml`. Idempotent: if semantic-release decided there was
+      # nothing to release, the version on disk is already on the registry and this
+      # is a no-op rather than a failure.
+      - name: Publish to npm (trusted publishing — no token)
+        run: |
+          VERSION=$(node -p "require('./package.json').version")
+          if npm view "plasma-card-sdk@${VERSION}" version >/dev/null 2>&1; then
+            echo "plasma-card-sdk@${VERSION} is already on npm — nothing to publish."
+            exit 0
+          fi
+          echo "Publishing plasma-card-sdk@${VERSION} …"
+          npm publish --provenance --access public

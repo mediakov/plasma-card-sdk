@@ -1,0 +1,29 @@
+{
+  "branches": ["main"],
+  "plugins": [
+    [
+      "@semantic-release/commit-analyzer",
+      {
+        "//": "Stay in 0.x while the API settles: a breaking change bumps the minor, not the major. The response models were observed against a single account, so unusual states (frozen cards, other currencies, send/withdrawal rows) are still unverified and will move. The BREAKING CHANGE notes still appear in the release notes.",
+        "releaseRules": [{ "breaking": true, "release": "minor" }]
+      }
+    ],
+    "@semantic-release/release-notes-generator",
+    "@semantic-release/changelog",
+    [
+      "@semantic-release/npm",
+      {
+        "//": "Bump package.json only. The publish is done by the workflow with npm's trusted publishing (OIDC): @semantic-release/npm hard-requires an NPM_TOKEN (set-npmrc-auth throws ENONPMTOKEN without one) and has no OIDC support, and a long-lived, 2FA-bypassing token in CI is exactly the npm supply-chain vector we are avoiding. With npmPublish:false it skips the auth check entirely.",
+        "npmPublish": false
+      }
+    ],
+    "@semantic-release/github",
+    [
+      "@semantic-release/git",
+      {
+        "assets": ["CHANGELOG.md", "package.json"],
+        "message": "chore(release): ${nextRelease.version} [skip ci]\n\n${nextRelease.notes}"
+      }
+    ]
+  ]
+}

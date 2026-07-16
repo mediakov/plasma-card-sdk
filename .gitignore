@@ -22,3 +22,4 @@ sslkeys*.txt
 # misc
 .DS_Store
 *.log
+coverage/

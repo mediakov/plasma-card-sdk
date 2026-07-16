@@ -1,0 +1,37 @@
+name: Bug report
+description: Something isn't working as expected
+labels: [bug]
+body:
+  - type: textarea
+    id: what
+    attributes:
+      label: What happened?
+      description: A clear description of the bug, including the endpoint/method involved.
+    validations:
+      required: true
+  - type: textarea
+    id: repro
+    attributes:
+      label: Reproduction
+      description: Minimal code that reproduces the issue. Redact tokens/cookies.
+      render: ts
+    validations:
+      required: true
+  - type: input
+    id: version
+    attributes:
+      label: SDK version
+      placeholder: 0.1.0
+    validations:
+      required: true
+  - type: input
+    id: node
+    attributes:
+      label: Node version
+      placeholder: v20.x
+  - type: textarea
+    id: logs
+    attributes:
+      label: Error output
+      description: Stack trace or error message. Remove any access_token / refresh_token values.
+      render: shell
