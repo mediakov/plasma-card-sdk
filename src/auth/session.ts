@@ -1,4 +1,15 @@
-import { existsSync, mkdirSync, readFileSync, writeFileSync, chmodSync } from "node:fs";
+import {
+  chmodSync,
+  closeSync,
+  existsSync,
+  fsyncSync,
+  mkdirSync,
+  openSync,
+  readFileSync,
+  renameSync,
+  unlinkSync,
+  writeFileSync,
+} from "node:fs";
 import { dirname } from "node:path";
 
 /**
@@ -52,12 +63,54 @@ export class SessionStore {
     return undefined;
   }
 
+  /**
+   * Persist the session atomically and durably.
+   *
+   * This matters more than it looks. Privy BURNS the old refresh token the moment it issues a new
+   * one, so the rotated token on its way to this file is the only thing standing between an
+   * unattended syncer and a manual OTP. A plain writeFileSync can be interrupted half-written,
+   * leaving a truncated file that parses as no session at all — the old token already dead, the
+   * new one never landed.
+   *
+   * So: write a temp file alongside the target (rename is only atomic within one filesystem),
+   * fsync it so the bytes are really on disk, then rename over the target. A crash at any point
+   * leaves either the complete old session or the complete new one, never a torn file.
+   */
   save(session: PlasmaSession | LegacySession): void {
     const dir = dirname(this.file);
     if (dir && !existsSync(dir)) mkdirSync(dir, { recursive: true, mode: 0o700 });
-    writeFileSync(this.file, JSON.stringify(session), { mode: 0o600 });
-    // writeFile's mode is affected by an existing file and the process umask.
-    chmodSync(this.file, 0o600);
+    const tmp = `${this.file}.${process.pid}.tmp`;
+    try {
+      const fd = openSync(tmp, "w", 0o600);
+      try {
+        writeFileSync(fd, JSON.stringify(session));
+        fsyncSync(fd);
+      } finally {
+        closeSync(fd);
+      }
+      // openSync's mode is subject to the umask; make the private mode explicit before it lands.
+      chmodSync(tmp, 0o600);
+      renameSync(tmp, this.file);
+    } catch (e) {
+      try {
+        if (existsSync(tmp)) unlinkSync(tmp);
+      } catch {
+        /* nothing more we can do about the temp file */
+      }
+      throw e;
+    }
+    // Without this the rename itself can be lost in a crash, even though the data was fsynced.
+    // Not every platform/filesystem permits it, so it is best-effort.
+    try {
+      const dfd = openSync(dir || ".", "r");
+      try {
+        fsyncSync(dfd);
+      } finally {
+        closeSync(dfd);
+      }
+    } catch {
+      /* directory fsync unsupported here */
+    }
   }
 
   clear(): void {

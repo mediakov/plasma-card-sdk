@@ -5,7 +5,7 @@
  */
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
-import { PlasmaCard, ApiError, AuthError, RateLimitError, ValidationError, IDEMPOTENT_METHODS } from "../dist/index.js";
+import { PlasmaCard, HttpClient, ApiError, AuthError, RateLimitError, ValidationError, IDEMPOTENT_METHODS } from "../dist/index.js";
 
 function json(status, body, headers = {}) {
   return new Response(typeof body === "string" ? body : JSON.stringify(body), {
@@ -132,5 +132,27 @@ describe("auth failures", () => {
     const { client, calls } = clientWith(() => json(401, { success: false, errors: [{ error_code: "UNAUTHORIZED" }] }));
     await assert.rejects(() => client.account.user(), AuthError);
     assert.equal(calls.length, 1); // 401 is not a transient status; no blind retry
+  });
+
+  it("keeps a failed refresh as the cause, not swallowed", async () => {
+    // The caller sees the 401 on the endpoint they asked for, but the reason the session could
+    // not be renewed is the part an operator needs — it must survive on `.cause`.
+    const http = new HttpClient({ privyToken: "stale", fetch: async () => json(401, { success: false }) });
+    const why = new Error("refresh token expired");
+    http.setRefresher(async () => {
+      throw why;
+    });
+    const err = await http.get("/v1/user").catch((e) => e);
+    assert.ok(err instanceof AuthError);
+    assert.equal(err.status, 401);
+    assert.equal(err.cause, why, "the refresh failure was thrown away");
+  });
+
+  it("has no cause when the 401 stands on its own", async () => {
+    const http = new HttpClient({ privyToken: "t", fetch: async () => json(401, { success: false }) });
+    http.setRefresher(async () => false); // nothing to refresh with
+    const err = await http.get("/v1/user").catch((e) => e);
+    assert.ok(err instanceof AuthError);
+    assert.equal(err.cause, undefined);
   });
 });

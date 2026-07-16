@@ -116,15 +116,29 @@ export class EmailAuth {
     // token — confirmed live: omitting it returns 400 {"code":"missing_or_invalid_token"}.
     const accessToken = stored.accessToken;
     this.inFlightRefresh = (async () => {
-      const body = await this.post(
-        SESSIONS,
-        { refresh_token: refreshToken },
-        { authorization: `Bearer ${accessToken}` },
-      ) as PrivyTokenResponse;
-      const tokens = this.tokensFrom(body, SESSIONS);
-      // Privy rotates the refresh token on use; keep the new one, but never regress to no token.
-      this.persist({ accessToken: tokens.accessToken, refreshToken: tokens.refreshToken ?? refreshToken });
-      return true;
+      try {
+        const body = await this.post(
+          SESSIONS,
+          { refresh_token: refreshToken },
+          { authorization: `Bearer ${accessToken}` },
+        ) as PrivyTokenResponse;
+        const tokens = this.tokensFrom(body, SESSIONS);
+        // Privy rotates the refresh token on use; keep the new one, but never regress to no token.
+        this.persist({ accessToken: tokens.accessToken, refreshToken: tokens.refreshToken ?? refreshToken });
+        return true;
+      } catch (err) {
+        // The in-flight guard above only de-dupes within THIS process. Another process sharing the
+        // session file can rotate the token between our load and our request — Privy burns a
+        // refresh token on use, so ours is now rejected while their fresh one sits on disk.
+        // Re-read: if the stored token has moved on, adopt it rather than failing a healthy
+        // session into a manual OTP.
+        const current = this.sessions.load();
+        if (current?.refreshToken && current.refreshToken !== refreshToken) {
+          this.http.setToken(current.accessToken);
+          return true;
+        }
+        throw err;
+      }
     })();
     try {
       return await this.inFlightRefresh;

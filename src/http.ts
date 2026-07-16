@@ -137,6 +137,8 @@ export class HttpClient {
     }
     // A 401 gets at most one refresh + replay, regardless of how many normal retries run.
     let refreshAttempted = false;
+    // Why a refresh failed, kept so it can ride out on the surfaced error's `cause`.
+    let refreshError: unknown;
 
     for (let attempt = 0; ; attempt++) {
       let res: Response;
@@ -168,10 +170,14 @@ export class HttpClient {
 
       // Expired access token: renew once and replay with the fresh bearer. If the refresh itself
       // fails (expired/rotated refresh token), fall through to surface the original 401 on the
-      // endpoint the caller actually asked for — recovery from there is a new OTP.
+      // endpoint the caller actually asked for — recovery from there is a new OTP. The refresh's
+      // own failure is kept and attached as `cause`: it is the part an operator actually needs.
       if (res.status === 401 && this.refresher && !refreshAttempted) {
         refreshAttempted = true;
-        const renewed = await this.refresher().catch(() => false);
+        const renewed = await this.refresher().catch((e: unknown) => {
+          refreshError = e;
+          return false;
+        });
         if (renewed) {
           if (this.privyToken) headers["authorization"] = `${AUTH_SCHEME} ${this.privyToken}`;
           attempt--; // the replay is not one of the backoff retries
@@ -182,7 +188,7 @@ export class HttpClient {
       const text = await res.text();
       if (!res.ok) {
         const ra = res.headers.get("retry-after");
-        throw apiErrorFor(res.status, url.toString(), text, ra ? Number(ra) * 1000 : undefined);
+        throw apiErrorFor(res.status, url.toString(), text, ra ? Number(ra) * 1000 : undefined, refreshError);
       }
       if (!text) return undefined as T;
       let parsed: unknown;

@@ -28,8 +28,15 @@ export class AuthError extends ApiError {}
 
 /** 429 — rate limited. */
 export class RateLimitError extends ApiError {
-  constructor(status: number, url: string, body: string, code: string | undefined, public readonly retryAfterMs?: number) {
-    super(status, url, body, code);
+  constructor(
+    status: number,
+    url: string,
+    body: string,
+    code: string | undefined,
+    public readonly retryAfterMs?: number,
+    options?: { cause?: unknown },
+  ) {
+    super(status, url, body, code, options);
   }
 }
 
@@ -43,7 +50,21 @@ export class ValidationError extends PlasmaError {
 export class NetworkError extends PlasmaError {}
 export class TimeoutError extends NetworkError {}
 
-export function apiErrorFor(status: number, url: string, body: string, retryAfterMs?: number): ApiError {
+/**
+ * Build the right error for a failed response.
+ *
+ * `cause` carries a failure that happened while trying to RECOVER from this one — a token refresh
+ * that itself failed. The caller sees the 401 on the endpoint they asked for, but the reason the
+ * session could not be renewed (expired refresh token, Privy rejecting the bearer) is preserved on
+ * `.cause` rather than thrown away. Without it an unattended syncer reports "401" and nothing else.
+ */
+export function apiErrorFor(
+  status: number,
+  url: string,
+  body: string,
+  retryAfterMs?: number,
+  cause?: unknown,
+): ApiError {
   let code: string | undefined;
   try {
     const j = JSON.parse(body);
@@ -53,7 +74,7 @@ export function apiErrorFor(status: number, url: string, body: string, retryAfte
   } catch {
     /* not JSON */
   }
-  if (status === 401 || status === 403) return new AuthError(status, url, body, code);
-  if (status === 429) return new RateLimitError(status, url, body, code, retryAfterMs);
-  return new ApiError(status, url, body, code);
+  if (status === 401 || status === 403) return new AuthError(status, url, body, code, { cause });
+  if (status === 429) return new RateLimitError(status, url, body, code, retryAfterMs, { cause });
+  return new ApiError(status, url, body, code, { cause });
 }
