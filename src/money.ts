@@ -66,6 +66,66 @@ export function transactionDate(tx: Pick<Transaction, "timestamp">): Date | null
   return Number.isNaN(d.getTime()) ? null : d;
 }
 
+/**
+ * The currencies Plasma settles at par with USD.
+ *
+ * This is not an assumption about market prices — it is what the backend itself does. Its own
+ * balance arithmetic mixes the two 1:1: a day of `USDT0` receives (914.852556) less `USDT` holds
+ * (677.39) reconciles exactly to the USD-labelled `cash_balance` of 237.462556. Treating them as
+ * one unit therefore matches the ledger the API is keeping.
+ *
+ * It is deliberately the OBSERVED set, not every dollar-ish token. A currency that is not in here
+ * — XPL above all, which floats and is worth nothing near a dollar — converts to `null` rather
+ * than being waved through at par.
+ */
+export const USD_PEGGED: ReadonlySet<string> = new Set(["USD", "USDT", "USDT0"]);
+
+/** Whether a currency is one Plasma settles at par with USD. */
+export function isUsdPegged(currency: string | null | undefined): boolean {
+  return typeof currency === "string" && USD_PEGGED.has(currency);
+}
+
+/**
+ * Re-denominate money into USD, or null if it is not a USD-pegged currency.
+ *
+ * Par means the minor units carry over untouched — only the label changes — so this is exact and
+ * safe to `formatMoney`. Returns null for XPL and anything else unknown: converting those needs a
+ * price the API did not give us here, and inventing one would put a fabricated number in a ledger.
+ * (For token holdings the API does supply `AssetBalance.total_balance_usd` — use that instead.)
+ */
+export function toUsd(money: Money | null | undefined): Money | null {
+  if (!isMoney(money) || !isUsdPegged(money.currency)) return null;
+  return { amount: money.amount, currency: "USD", decimals: money.decimals };
+}
+
+/**
+ * A transaction's signed amount in USD, or null when its currency is not USD-pegged.
+ *
+ * This is the figure to book: it normalises the `USDT` / `USDT0` split that otherwise makes a
+ * naive sum add two different-looking units together.
+ */
+export function usdAmount(tx: Pick<Transaction, "amount">): number | null {
+  return parseMoney(toUsd(tx.amount));
+}
+
+/**
+ * The local-currency leg of a foreign-currency purchase (e.g. −54.57 EUR), or null if the
+ * transaction did not involve FX. Structured Money — never parse it out of a string.
+ */
+export function localAmount(tx: Pick<Transaction, "fx_details">): Money | null {
+  const local = tx.fx_details?.local_amount;
+  return isMoney(local) ? local : null;
+}
+
+/**
+ * The FX rate applied, or null. Confirmed live on every FX row: it is the LOCAL currency per
+ * SETTLEMENT unit, i.e. `local_amount = amount * exchange_rate` (63.61 USDT * 0.85788 = 54.57 EUR).
+ */
+export function exchangeRate(tx: Pick<Transaction, "fx_details">): number | null {
+  const rate = tx.fx_details?.exchange_rate;
+  return typeof rate === "number" && Number.isFinite(rate) ? rate : null;
+}
+
 /** A settled transaction (money has actually moved) — excludes pending holds and declines. */
 export function isSettled(tx: Pick<Transaction, "status">): boolean {
   return tx.status === "completed";

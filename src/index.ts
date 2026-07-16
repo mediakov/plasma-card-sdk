@@ -22,6 +22,12 @@ export {
   transactionDate,
   isSettled,
   isBookable,
+  USD_PEGGED,
+  isUsdPegged,
+  toUsd,
+  usdAmount,
+  localAmount,
+  exchangeRate,
 } from "./money.js";
 
 export {
