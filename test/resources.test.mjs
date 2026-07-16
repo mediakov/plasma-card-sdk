@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
-import { PlasmaCard } from "../dist/index.js";
+import { PlasmaCard, parseMoney } from "../dist/index.js";
 
 /** Wrap a payload in the Plasma envelope the HTTP layer unwraps. */
 function ok(data) {
@@ -25,6 +25,33 @@ describe("resources", () => {
     const cards = await client.cards.list();
     assert.equal(cards.length, 1);
     assert.equal(cards[0].last_4, "1234");
+  });
+
+  it("leftToSpend is limit headroom, not the account balance", async () => {
+    // Pins the semantics: a 10,000 daily limit less 613.78 of pending spend reports 9,386.22 —
+    // while the account holds 86.28. Reading left_to_spend as funds would be a ~100x error.
+    const { client } = clientWith((url) =>
+      url.pathname.endsWith("/left-to-spend")
+        ? ok({ left_to_spend: { amount: "9386220000", currency: "USDT", decimals: 6 } })
+        : ok({ total_balance: "86280251", decimals: 6 }),
+    );
+    const headroom = parseMoney((await client.cards.leftToSpend("c1")).left_to_spend);
+    const bal = await client.account.balance();
+    const funds = parseMoney({ amount: bal.total_balance, currency: "USD", decimals: bal.decimals });
+    assert.equal(headroom, 9386.22);
+    assert.equal(funds, 86.280251);
+    assert.ok(headroom > funds, "headroom and funds are independent numbers");
+    // The real ceiling on a purchase is the lower of the two.
+    assert.equal(Math.min(headroom, funds), funds);
+  });
+
+  it("a card limit is 6-decimal minor units, reconciling with left_to_spend", async () => {
+    // No `decimals` field exists on CardLimit; 6 is confirmed by the arithmetic closing exactly.
+    const { client } = clientWith(() => ok([{ id: "c1", limits: [{ limit: "10000000000", period: "daily" }] }]));
+    const [card] = await client.cards.list();
+    const limit = parseMoney({ amount: card.limits[0].limit, currency: "USD", decimals: 6 });
+    assert.equal(limit, 10_000);
+    assert.equal(+(limit - 9386.22).toFixed(2), 613.78); // == the pending spend that consumed it
   });
 
   it("cardLeftToSpend() requires and sends the card id", async () => {

@@ -14,7 +14,11 @@ export class Cards {
   }
 
   /**
-   * Remaining spend for one card against its limits. `GET /v1/user/card/left-to-spend?card_id=`
+   * Remaining headroom against this card's LIMIT. `GET /v1/user/card/left-to-spend?card_id=`
+   *
+   * **Not a balance.** It is the card's periodic limit less the spend already booked against it,
+   * and is unrelated to the money in the account — see {@link CardLeftToSpend}. For funds, call
+   * `Account.balance()`.
    *
    * The card id is required — the endpoint answers 400 CARD_ID_REQUIRED without it.
    */

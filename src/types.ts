@@ -88,6 +88,14 @@ export interface User {
 }
 
 export interface CardLimit {
+  /**
+   * The limit as a minor-units integer string, scaled by 6 (USD) — e.g. "10000000000" is 10,000.
+   *
+   * There is no `decimals` field here, unlike Money. The scale is confirmed arithmetically: a
+   * 10,000 daily limit less a day's spend reconciles exactly with `left_to_spend`; at any other
+   * scale it does not. Wrap it as `{ amount: limit, currency: "USD", decimals: 6 }` to read it
+   * with the money accessors.
+   */
   limit: string;
   period: LimitPeriod;
   [k: string]: unknown;
@@ -235,6 +243,18 @@ export interface AccountList {
   [k: string]: unknown;
 }
 
+/**
+ * Remaining headroom against the card's LIMIT — **not a balance, and not spendable funds.**
+ *
+ * `left_to_spend` = the card's limit for the period MINUS the non-declined card spend already
+ * booked against it. Confirmed live: a 10,000 daily limit with two pending charges totalling
+ * 613.78 reported exactly 9,386.22. Pending charges count; declined ones do not.
+ *
+ * It is derived from the limit alone and says nothing about the money in the account — the two
+ * routinely differ by orders of magnitude (a 10,000 limit over an 86.28 balance). The real
+ * ceiling on a purchase is the LOWER of this and the account balance, so never surface this as
+ * a balance or book it into a ledger: use `Account.balance()` for funds.
+ */
 export interface CardLeftToSpend {
   left_to_spend?: string | Money | null;
   [k: string]: unknown;
