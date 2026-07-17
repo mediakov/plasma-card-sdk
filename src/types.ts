@@ -50,15 +50,24 @@ export type CardType = Open<"virtual" | "physical">;
 export type LimitPeriod = Open<"daily" | "weekly" | "monthly" | "yearly" | "per_transaction">;
 export type TransactionStatus = Open<"completed" | "pending" | "declined" | "reversed">;
 /**
- * `card_purchase`, `receive` and `earn_deposit` are observed. The rest are inference and
- * may be wrong — `Open<>` keeps an unseen value from becoming a type error.
+ * `card_purchase`, `receive`, `earn_deposit` and `earn_withdraw` are OBSERVED. `send`,
+ * `withdrawal` and `refund` are inference and may well be wrong — note that the real earn
+ * withdrawal is `earn_withdraw`, not the `earn_withdrawal` anyone would have guessed, so
+ * treat the unobserved names with suspicion. `Open<>` keeps an unseen value from becoming
+ * a type error.
  *
- * Beware `earn_deposit`: it is tagged `balance_type: "cash"` and carries a NEGATIVE
- * amount with no matching earn-side row, because it is the cash leg of a move into the
- * earn vault. Read literally it looks like a purchase; it is a transfer.
+ * **Beware the earn pair.** Moving money between the cash and earn pots produces ONE row,
+ * and it describes itself misleadingly:
+ *
+ *   { type: "earn_deposit",  balance_type: "cash", amount: -10, vault_address: "0x…" }
+ *   { type: "earn_withdraw", balance_type: "cash", amount: +10, vault_address: "0x…" }
+ *
+ * Both are tagged `cash`, and neither has a matching earn-side row. Read literally, a
+ * deposit looks like a purchase and a withdrawal looks like income. They are transfers
+ * between your own two balances; the sign carries the direction.
  */
 export type TransactionType = Open<
-  "card_purchase" | "receive" | "earn_deposit" | "send" | "withdrawal" | "refund"
+  "card_purchase" | "receive" | "earn_deposit" | "earn_withdraw" | "send" | "withdrawal" | "refund"
 >;
 export type TransactionSource = Open<"card" | "onchain" | "internal">;
 export type BalanceType = Open<"cash" | "earn">;
@@ -193,7 +202,18 @@ export interface TokenBalances {
   [k: string]: unknown;
 }
 
-/** Where a card purchase happened. Note: no lat/lng — this is a postal-ish location. */
+/**
+ * The merchant's REGISTERED address — **not** where the purchase happened.
+ *
+ * Do not treat this as a transaction location. Observed live: an Uber Eats and a Trip.com
+ * purchase both reported `Amsterdam, NL` (those companies' EU seat) for a cardholder in
+ * Portugal, while the merchant actually visited in person — a Portuguese cinema chain —
+ * reported no location at all. Geocoding these would put map pins in the wrong country.
+ *
+ * Useful for identifying a merchant; useless for locating a purchase. `address` and
+ * `formatted` were empty on every merchant observed, leaving only city/country. There is
+ * no lat/lng here at all.
+ */
 export interface MerchantLocation {
   address?: string | null;
   city?: string | null;
@@ -285,7 +305,7 @@ export interface Transaction {
   tx_hash?: string | null;
   token?: TokenRef | null;
   chain?: ChainRef | null;
-  /** The earn vault a deposit went into (`type: "earn_deposit"`). */
+  /** The earn vault the money moved into or out of (`earn_deposit` / `earn_withdraw`). */
   vault_address?: string | null;
 
   // ── p2p counterparty (all null on the on-chain receives observed) ─────────
