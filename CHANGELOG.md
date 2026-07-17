@@ -1,3 +1,10 @@
+# [0.2.0](https://github.com/mediakov/plasma-card-sdk/compare/v0.1.0...v0.2.0) (2026-07-17)
+
+
+### Features
+
+* model the fields a live capture found, and the spend bonus ([dab9494](https://github.com/mediakov/plasma-card-sdk/commit/dab94945b6d9eb2710622cf6ed5b9a5b047aa53b))
+
 # [0.1.0](https://github.com/mediakov/plasma-card-sdk/compare/v0.0.0...v0.1.0) (2026-07-16)
 
 
