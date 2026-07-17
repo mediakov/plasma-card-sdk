@@ -1,6 +1,6 @@
 {
   "name": "plasma-card-sdk",
-  "version": "0.2.0",
+  "version": "0.2.1",
   "description": "Unofficial TypeScript SDK for the Plasma One card API — auth with headless token refresh, balances, cards, and transaction history.",
   "keywords": [
     "plasma",

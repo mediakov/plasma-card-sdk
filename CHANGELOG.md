@@ -1,3 +1,10 @@
+## [0.2.1](https://github.com/mediakov/plasma-card-sdk/compare/v0.2.0...v0.2.1) (2026-07-17)
+
+
+### Bug Fixes
+
+* earn_withdraw is real, and merchant location is not a place ([6668e59](https://github.com/mediakov/plasma-card-sdk/commit/6668e591d7cd8753b61c47fcdef9d9e8b061e789))
+
 # [0.2.0](https://github.com/mediakov/plasma-card-sdk/compare/v0.1.0...v0.2.0) (2026-07-17)
 
 
