@@ -1,7 +1,7 @@
 import { DEFAULTS, ENDPOINTS } from "../constants.js";
 import type { HttpClient } from "../http.js";
-import type { CursorPage, XplTransaction } from "../types.js";
-import { expectCursorPage } from "../validate.js";
+import type { CursorPage, RewardsBalance, SpendBonus, XplTransaction } from "../types.js";
+import { expectCursorPage, expectObject } from "../validate.js";
 
 export interface XplListParams {
   /** Page size. */
@@ -10,9 +10,28 @@ export interface XplListParams {
   cursor?: string;
 }
 
-/** XPL reward-token history (tier upgrades, rewards). */
+/** XPL reward-token history, spend promotions, and accrued reward balances. */
 export class Rewards {
   constructor(private readonly http: HttpClient) {}
+
+  /**
+   * The spend-and-get-back promotion, if one is running. `GET /v1/user/rewards/spend-bonus`
+   *
+   * Reconciliation note: a completed bonus is credited to `cash_balance` with **no
+   * transaction** to explain it — confirmed live, where a completed $10 bonus left the
+   * cash balance exactly $10 above the sum of every row in `transaction-history`. If you
+   * are building a ledger from transactions, this endpoint is where that money comes from.
+   */
+  async spendBonus(): Promise<SpendBonus> {
+    const r = await this.http.get<unknown>(ENDPOINTS.spendBonus);
+    return expectObject(r, ENDPOINTS.spendBonus, "a spend-bonus object") as unknown as SpendBonus;
+  }
+
+  /** Accrued rewards awaiting payout. `GET /v1/user/rewards/balance` */
+  async balance(): Promise<RewardsBalance> {
+    const r = await this.http.get<unknown>(ENDPOINTS.rewardsBalance);
+    return expectObject(r, ENDPOINTS.rewardsBalance, "a rewards balance object") as unknown as RewardsBalance;
+  }
 
   /**
    * One page of XPL history. `GET /v1/user/rewards/xpl-transaction-history`

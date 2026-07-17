@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
-import { PlasmaCard, parseMoney } from "../dist/index.js";
+import { PlasmaCard, parseMoney, ValidationError } from "../dist/index.js";
 
 /** Wrap a payload in the Plasma envelope the HTTP layer unwraps. */
 function ok(data) {
@@ -169,5 +169,44 @@ describe("resources", () => {
         for await (const _ of client.transactions.since(new Date("nope"))) void _;
       }, RangeError);
     });
+  });
+});
+
+describe("rewards", () => {
+  it("spendBonus() reads the promotion that credits cash without a transaction", async () => {
+    // Real shape. The reconciliation hazard this documents: a completed bonus lands in
+    // cash_balance with no row in transaction-history, so a transactions-only ledger
+    // drifts by exactly the reward.
+    const { client } = clientWith(() =>
+      ok({
+        status: "completed",
+        reward_amount: { amount: "10000000", currency: "USDT", decimals: 6 },
+        spend_threshold: { amount: "100000000", currency: "USDT", decimals: 6 },
+        cumulative_spend: { amount: "677390000", currency: "USDT", decimals: 6 },
+        progress_percent: 100,
+        completed_at: "1784282609446",
+      }),
+    );
+    const sb = await client.rewards.spendBonus();
+    assert.equal(sb.status, "completed");
+    assert.equal(parseMoney(sb.reward_amount), 10);
+    assert.equal(parseMoney(sb.cumulative_spend), 677.39);
+  });
+
+  it("rewards.balance() reads the accrued payout balances", async () => {
+    const { client } = clientWith(() =>
+      ok({
+        balance: { amount: "0", currency: "USDT", decimals: 6 },
+        balance_payout_currency: { amount: "0", currency: "XPL", decimals: 18 },
+      }),
+    );
+    const rb = await client.rewards.balance();
+    assert.equal(parseMoney(rb.balance), 0);
+    assert.equal(rb.balance_payout_currency.currency, "XPL");
+  });
+
+  it("throws rather than return junk when the body is not an object", async () => {
+    const { client } = clientWith(() => ok([1, 2, 3]));
+    await assert.rejects(() => client.rewards.spendBonus(), ValidationError);
   });
 });

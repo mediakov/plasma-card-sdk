@@ -49,7 +49,17 @@ export type CardStatus = Open<"active" | "frozen" | "locked" | "terminated" | "p
 export type CardType = Open<"virtual" | "physical">;
 export type LimitPeriod = Open<"daily" | "weekly" | "monthly" | "yearly" | "per_transaction">;
 export type TransactionStatus = Open<"completed" | "pending" | "declined" | "reversed">;
-export type TransactionType = Open<"card_purchase" | "receive" | "send" | "withdrawal" | "refund">;
+/**
+ * `card_purchase`, `receive` and `earn_deposit` are observed. The rest are inference and
+ * may be wrong — `Open<>` keeps an unseen value from becoming a type error.
+ *
+ * Beware `earn_deposit`: it is tagged `balance_type: "cash"` and carries a NEGATIVE
+ * amount with no matching earn-side row, because it is the cash leg of a move into the
+ * earn vault. Read literally it looks like a purchase; it is a transfer.
+ */
+export type TransactionType = Open<
+  "card_purchase" | "receive" | "earn_deposit" | "send" | "withdrawal" | "refund"
+>;
 export type TransactionSource = Open<"card" | "onchain" | "internal">;
 export type BalanceType = Open<"cash" | "earn">;
 export type XplTransactionType = Open<"tier_upgrade" | "reward" | "cashback">;
@@ -183,18 +193,64 @@ export interface TokenBalances {
   [k: string]: unknown;
 }
 
+/** Where a card purchase happened. Note: no lat/lng — this is a postal-ish location. */
+export interface MerchantLocation {
+  address?: string | null;
+  city?: string | null;
+  country?: string | null;
+  formatted?: string | null;
+  [k: string]: unknown;
+}
+
 export interface TransactionMerchant {
   name?: string | null;
+  /** The unnormalised descriptor, e.g. "UBER   * EATS PENDING". */
   raw_name?: string | null;
   logo?: string | null;
   mcc_code?: string | null;
+  location?: MerchantLocation | null;
   category?: { name?: string | null; mcc?: number | null } | null;
   [k: string]: unknown;
 }
 
 export interface FxDetails {
+  /**
+   * The amount in the merchant's currency. Its `decimals` is its OWN — observed as 2 for
+   * EUR while the settlement leg used 6 — so never reuse the transaction's scale here.
+   */
   local_amount?: Money;
+  /** Local currency per settlement unit: local_amount = amount * exchange_rate. */
   exchange_rate?: number;
+  [k: string]: unknown;
+}
+
+/**
+ * Cashback accrued on a purchase. It is an accrual, not money that has moved: `status`
+ * was `pending` when observed. Expect the actual credit to arrive as its own transaction
+ * — counting this as income when the purchase posts would double it.
+ */
+export interface Cashback {
+  earned?: Money;
+  status?: Open<"pending" | "completed">;
+  /** Decimal fraction as a string, e.g. "0.03" for 3%. */
+  rate_applied?: string | null;
+  display_label?: string | null;
+  program?: { name?: string | null; type?: string | null; display_category_name?: string | null } | null;
+  cashback_type?: string | null;
+  [k: string]: unknown;
+}
+
+/** The chain an on-chain leg used. `id` 0 with key "solana" was observed — not an EVM id. */
+export interface ChainRef {
+  id?: number | null;
+  name?: string | null;
+  key?: Open<"solana" | "ethereum" | "plasma">;
+  [k: string]: unknown;
+}
+
+export interface TokenRef {
+  symbol?: string | null;
+  logo?: string | null;
   [k: string]: unknown;
 }
 
@@ -211,8 +267,31 @@ export interface Transaction {
   merchant?: TransactionMerchant | null;
   card?: { last_4?: string | null } | null;
   fx_details?: FxDetails | null;
+  /**
+   * Fee charged on the transaction (e.g. an FX markup). It is NOT additional to `amount`:
+   * reconciliation against the live balance shows `amount` is already the account's full
+   * impact, so adding this on top would overstate the charge.
+   */
+  fee_total?: Money | null;
+  /** Rewards accrued on a purchase. An accrual, not money that has moved — see Cashback. */
+  cashback?: Cashback | null;
   decline_reason?: string | null;
   decline_reason_data?: { type?: string | null; message?: string | null } | null;
+
+  // ── on-chain legs (receive / earn_deposit) ───────────────────────────────
+  /** The counterparty address on `chain`. Observed as a Solana address, not an EVM one. */
+  sender_address?: string | null;
+  /** The on-chain transaction hash. */
+  tx_hash?: string | null;
+  token?: TokenRef | null;
+  chain?: ChainRef | null;
+  /** The earn vault a deposit went into (`type: "earn_deposit"`). */
+  vault_address?: string | null;
+
+  // ── p2p counterparty (all null on the on-chain receives observed) ─────────
+  username?: string | null;
+  avatar_preset_id?: string | null;
+  alias?: string | null;
   [k: string]: unknown;
 }
 
@@ -234,6 +313,35 @@ export interface XplTransaction {
   display_title?: string | null;
   tier_upgrade?: TierUpgrade | null;
   tx_hash?: string | null;
+  [k: string]: unknown;
+}
+
+/**
+ * A spend-and-get-back promotion: spend `spend_threshold`, receive `reward_amount`.
+ *
+ * Worth knowing if you are reconciling: when this completes, Plasma credits the reward
+ * to the cash balance **without writing a transaction**. Observed live — a completed $10
+ * bonus left `cash_balance` exactly $10 above the sum of every row in
+ * `transaction-history`. A ledger built only from transactions will drift by the reward
+ * until (or unless) a row appears for it.
+ */
+export interface SpendBonus {
+  status?: Open<"completed" | "in_progress" | "expired">;
+  reward_amount?: Money;
+  spend_threshold?: Money;
+  cumulative_spend?: Money;
+  progress_percent?: number;
+  /** Epoch milliseconds as a string, like every other Plasma timestamp. */
+  expires_at?: string | null;
+  completed_at?: string | null;
+  days_remaining?: number;
+  [k: string]: unknown;
+}
+
+/** Accrued rewards awaiting payout, and their value in the payout token. */
+export interface RewardsBalance {
+  balance?: Money;
+  balance_payout_currency?: Money;
   [k: string]: unknown;
 }
 

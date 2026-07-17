@@ -45,6 +45,8 @@ export const ENDPOINTS = {
   virtualAccounts: "/v1/user/virtual-accounts", // GET — confirmed live ({accounts:[]})
   externalAccounts: "/v1/user/external-accounts", // GET — confirmed live ({accounts:[]})
   xplTransactionHistory: "/v1/user/rewards/xpl-transaction-history", // GET — confirmed; cursor-paginated
+  spendBonus: "/v1/user/rewards/spend-bonus", // GET — confirmed live
+  rewardsBalance: "/v1/user/rewards/balance", // GET — confirmed live
 } as const;
 
 /**
